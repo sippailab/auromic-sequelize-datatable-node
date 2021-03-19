@@ -29,7 +29,7 @@ const search = async (model, config, modelName, opt) => {
     return Promise.resolve({});
   }
 
-  const dialect = helper.getDialectFromModel(model);
+  const dialect = 'mssql';
   const description = await describe(model);
 
   return _.concat(
