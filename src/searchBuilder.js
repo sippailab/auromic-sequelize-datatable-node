@@ -94,6 +94,24 @@ const numericSearch = (modelName, modelDesc, config) => {
   }));
 };
 
+const dateFilter = (modelName, modelDesc, config) => {
+  const columns = filterColumns(modelName, config);
+  const nameMaps = createNameMaps(columns);
+
+  const matchNames = _(modelDesc)
+    .keys()
+    .filter(item => {
+      // const isNumeric = isTypeExists(possibleNumericTypes, modelDesc[item].type);
+      return isTypeExists(['DATETIMEOFFSET'], modelDesc[item].type);
+    })
+    .value();
+
+  return _.map(matchNames, name => ({
+    [helper.searchify(nameMaps[name].data)]: new Date(config.range.gte),
+    // [helper.searchify(nameMaps[name].data)]: new Date(config.range.lte),
+  }));
+};
+
 const booleanSearch = (modelName, modelDesc, config) => {
   const columns = filterColumns(modelName, config);
   const nameMaps = createNameMaps(columns);
@@ -112,4 +130,4 @@ const booleanSearch = (modelName, modelDesc, config) => {
   }));
 };
 
-module.exports = { numericSearch, charSearch, booleanSearch };
+module.exports = { numericSearch, charSearch, booleanSearch, dateFilter };

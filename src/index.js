@@ -39,6 +39,21 @@ const search = async (model, config, modelName, opt) => {
   );
 };
 
+const range = async (model, config, modelName, opt) => {
+  if (_.isUndefined(config.columns) || !config.columns.length) {
+    return Promise.resolve({});
+  }
+
+  const dialect = 'mssql';
+  const description = await describe(model);
+
+  return _.concat(
+    // searchBuilder.charSearch(modelName, description, config, opt, dialect),
+    searchBuilder.dateFilter(modelName, description, config, opt),
+    // searchBuilder.booleanSearch(modelName, description, config, opt)
+  );
+};
+
 const buildSearch = async (model, config, params, opt) => {
   const leaves = helper.dfs(params, [], []);
   if (_.isUndefined(config.search) || !config.search.value) {
@@ -61,6 +76,32 @@ const buildSearch = async (model, config, params, opt) => {
   return concatenated;
 };
 
+const buildRange = async (model, config, params, opt) => {
+  const leaves = helper.dfs(params, [], []);
+  if (_.isUndefined(config.range) || !config.range) {
+    return Promise.resolve({});
+  }
+
+  const result = await Promise.map(leaves, leaf => range(leaf.model || model, config, leaf.as || ``, opt));
+
+
+
+  const objects = _.filter(result, res => _.isObject(res) && !_.isArray(res) && !_.isEmpty(res));
+
+
+  // const arrays = _.filter(result, res => _.isArray(res) && !_.isEmpty(res));
+
+  // const reducedArrays = _.reduce(arrays, (acc, val) => _.concat(acc, val), []);
+  const reducedObject = _.reduce(objects, (acc, val) => _.merge(acc, val), {});
+
+  const operator = opt.operator || Op.gte;
+  const concatenated = {
+    [operator]: _.filter(_.concat(reducedArrays, reducedObject), res => !_.isEmpty(res))
+  };
+
+  return concatenated;
+};
+
 const buildColumnSearch = async (model, config, params, opt) => {
   const options = opt;
   options.operator = Op.and;
@@ -70,6 +111,22 @@ const buildColumnSearch = async (model, config, params, opt) => {
   const result = await Promise.map(columnSearchs, column => {
     const fakeConfig = { columns: [column], search: column.search };
     return buildSearch(model, fakeConfig, params, options);
+  });
+  return result[0];
+};
+
+const buildRangeFilter = async (model, config, params, opt) => {
+  const options = opt;
+  options.operator = Op.and;
+
+  const columnFilters = config.columns.filter(
+    column => column.range && ( column.range.gte || column.range.lte )
+  );
+
+
+  const result = await Promise.map(columnFilters, column => {
+    const fakeConfig = { columns: [column], range: column.range };
+    return buildRange(model, fakeConfig, params, options);
   });
   return result[0];
 };
@@ -120,6 +177,13 @@ const getResult = async (model, config, modelParams, opt) => {
 
   const searchResult = await buildSearch(model, config, params, opt);
   const searchColumnResult = await buildColumnSearch(model, config, params, opt);
+  // const searchRangeFilter = await buildRangeFilter(model, config, params, opt);
+
+  console.log('==================searchResult==================');
+  console.log(searchResult);
+  console.log('==================searchColumnResult================');
+  console.log(searchColumnResult);
+  console.log('==================================');
 
   const whereCondition = [];
   if (params.where) whereCondition.push(params.where);
@@ -136,7 +200,7 @@ const getResult = async (model, config, modelParams, opt) => {
   }
 
   _.assign(params, paginate(config));
-
+  
   const result = await Promise.all([model.count({}), model.findAndCountAll(params)]);
 
   return {
@@ -150,6 +214,17 @@ const getResult = async (model, config, modelParams, opt) => {
 
 const dataTable = async (model, config, modelParams, options) => {
   const opt = options || {};
+
+  // console.log('=================model===================');
+  // console.log(model);
+  // console.log('=================config===================');
+  // console.log(config);
+  // console.log('=================modelParams===================');
+  // console.log(modelParams);
+  // console.log('=================options===================');
+  // console.log(options);
+  // console.log('====================================');
+
   if (!model || !config) {
     return Promise.reject(new Error(`Model and config should be provided`));
   }
